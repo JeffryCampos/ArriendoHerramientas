@@ -348,8 +348,7 @@ $conexion->close();
                 rentModal.querySelector('#fecha_inicio').setAttribute('min', minDate);
                 rentModal.querySelector('#fecha_fin').setAttribute('min', minDate);
             });
-
-            // Update min date for fecha_fin when fecha_inicio changes
+            
             const fechaInicioInput = document.getElementById('fecha_inicio');
             const fechaFinInput = document.getElementById('fecha_fin');
 
