@@ -1,213 +1,76 @@
 <?php
-session_start();
-
-$host = "127.0.0.1";
-$usuario = "root";
-$clave = "1234";
-$bd = "arriendo_herramientas";
-$conexion = new mysqli($host, $usuario, $clave, $bd);
-
-if ($conexion->connect_error) {
-    die("Error de conexión: " . $conexion->connect_error);
-}
-
-$mensaje = "";
-$mensaje_tipo = "danger";
-
-// Initialize variables to hold form values. They will be empty on first load.
-// If there's an error, these will be populated with the submitted values.
-$nombre_value = "";
-$email_value = "";
-$selected_tipo_usuario = "cliente"; // Default selected value for the dropdown
-
-// Handle Registration Form Submission
-if (isset($_POST['register'])) {
-    $nombre = $conexion->real_escape_string($_POST['nombre']);
-    $email = $conexion->real_escape_string($_POST['email']);
-    $password = $_POST['password'];
-    // Ensure tipo_usuario is one of the allowed values, default to 'cliente'
-    $tipo_usuario = in_array($_POST['tipo_usuario'], ['cliente', 'arrendador']) ? $_POST['tipo_usuario'] : 'cliente';
-
-    // Populate values back to form for user convenience in case of error
-    $nombre_value = htmlspecialchars($nombre);
-    $email_value = htmlspecialchars($email);
-    $selected_tipo_usuario = htmlspecialchars($tipo_usuario);
-
-    if (empty($nombre) || empty($email) || empty($password)) {
-        $mensaje = "Por favor, completa todos los campos.";
-    } else {
-        // Check if email already exists
-        $stmt_check_email = $conexion->prepare("SELECT id FROM usuarios WHERE email = ?");
-        $stmt_check_email->bind_param("s", $email);
-        $stmt_check_email->execute();
-        $result_check_email = $stmt_check_email->get_result();
-
-        if ($result_check_email->num_rows > 0) {
-            $mensaje = "Este correo electrónico ya está registrado. Intenta con otro.";
-        } else {
-            // Hash the password before storing
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            
-            $stmt_insert = $conexion->prepare("INSERT INTO usuarios (nombre, email, password, tipo_usuario) VALUES (?, ?, ?, ?)");
-            $stmt_insert->bind_param("ssss", $nombre, $email, $hash, $tipo_usuario);
-
-            if ($stmt_insert->execute()) {
-                // Registration successful, redirect to login page with success message
-                header("Location: index.php?registro=exito");
-                exit;
-            } else {
-                $mensaje = "Error al registrar: " . $stmt_insert->error;
-            }
-            $stmt_insert->close();
-        }
-        $stmt_check_email->close();
+$host = "127.0.0.1";$usuario = "root";$clave = "1234";$bd = "arriendo_herramientas";
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+try {$conexion = new mysqli($host, $usuario, $clave, $bd);$conexion->set_charset("utf8mb4");}
+catch (mysqli_sql_exception $e) {die("Error de conexión a la base de datos.");}
+$mensaje = "";$mensaje_tipo = "";
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $nombre = $_POST['nombre'];$email = $_POST['email'];$password = $_POST['password'];$tipo_usuario = $_POST['tipo_usuario'];
+    $password_hash = password_hash($password, PASSWORD_DEFAULT);
+    $stmt_check_email = $conexion->prepare("SELECT id FROM usuarios WHERE email = ?");
+    $stmt_check_email->bind_param("s", $email);$stmt_check_email->execute();$stmt_check_email->store_result();
+    if ($stmt_check_email->num_rows > 0) {$mensaje = "El correo electrónico ya está registrado.";$mensaje_tipo = "danger";}
+    else {
+        $stmt_insert = $conexion->prepare("INSERT INTO usuarios (nombre, email, password_hash, tipo_usuario) VALUES (?, ?, ?, ?)");
+        $stmt_insert->bind_param("ssss", $nombre, $email, $password_hash, $tipo_usuario);
+        if ($stmt_insert->execute()) {
+            if ($tipo_usuario === 'cliente') {header("Location: index.php?registro=exito");}
+            else {header("Location: index.php");}
+            exit;
+        } else {$mensaje = "Error al registrar el usuario: " . $stmt_insert->error;$mensaje_tipo = "danger";}
+        $stmt_insert->close();
     }
+    $stmt_check_email->close();
 }
-
 $conexion->close();
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8" />
-    <title>Arriendo de Herramientas - Registro</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <meta charset="UTF-8"><title>Registrarse - Arriendo de Herramientas</title><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* Copiar el mismo estilo CSS que en index.php */
-        body {
-            background: #f0f2f5;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .hero {
-            background: linear-gradient(135deg, #4e54c8, #8f94fb);
-            color: white;
-            padding: 60px 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            margin-bottom: 50px;
-            text-align: center;
-        }
-        .hero h1 {
-            font-weight: 700;
-            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            font-size: 2.8rem;
-        }
-        .hero p {
-            font-size: 1.3rem;
-            opacity: 0.85;
-            margin-top: 12px;
-        }
-        .form-container {
-            max-width: 480px;
-            margin: auto;
-            background: white;
-            padding: 30px 35px;
-            border-radius: 12px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-            margin-bottom: 40px;
-        }
-        .form-title {
-            font-weight: 600;
-            color: #4e54c8;
-            margin-bottom: 25px;
-            text-align: center;
-        }
-        label {
-            font-weight: 500;
-        }
-        input[type="submit"] {
-            background: #4e54c8;
-            border: none;
-            padding: 10px 0;
-            font-weight: 600;
-            border-radius: 50px;
-            width: 100%;
-            box-shadow: 0 4px 10px rgba(78, 84, 200, 0.4);
-            transition: background 0.3s ease;
-            color: white;
-            cursor: pointer;
-        }
-        input[type="submit"]:hover {
-            background: #3b3f99;
-            box-shadow: 0 6px 15px rgba(59, 63, 153, 0.6);
-        }
-        .alert {
-            max-width: 480px;
-            margin: 20px auto;
-            text-align: center;
-            font-weight: 600;
-        }
-        .login-text {
-            max-width: 480px;
-            margin: 10px auto 40px auto;
-            text-align: center;
-            font-weight: 500;
-            color: #4e54c8;
-        }
-        .login-text a {
-            color: #3b3f99;
-            font-weight: 700;
-            text-decoration: none;
-        }
-        .login-text a:hover {
-            text-decoration: underline;
-        }
+        body {background: linear-gradient(to right, #6a11cb, #2575fc);display: flex;justify-content: center;align-items: center;min-height: 100vh;margin: 0;font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;}
+        .register-container {background-color: #fff;padding: 40px;border-radius: 10px;box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);width: 100%;max-width: 450px;text-align: center;}
+        .register-container h2 {margin-bottom: 30px;color: #333;font-weight: 700;}
+        .form-floating label {color: #6c757d;}
+        .form-control:focus, .form-select:focus {box-shadow: 0 0 0 0.25rem rgba(45, 122, 237, 0.25);border-color: #2575fc;}
+        .btn-primary {background-color: #2575fc;border-color: #2575fc;padding: 12px 0;font-size: 1.1rem;font-weight: 600;margin-top: 20px;}
+        .btn-primary:hover {background-color: #1a5bbd;border-color: #1a5bbd;}
+        .mt-3 a {color: #2575fc;text-decoration: none;}
+        .mt-3 a:hover {text-decoration: underline;}
+        .alert {margin-top: 20px;}
     </style>
 </head>
 <body>
-
-    <div class="hero">
-        <div class="container">
-            <h1>Regístrate en Arriendo de Herramientas</h1>
-            <p>Completa el formulario para crear tu cuenta.</p>
-        </div>
-    </div>
-
-    <?php if ($mensaje): ?>
-        <div class="alert alert-<?= $mensaje_tipo ?> alert-dismissible fade show" role="alert">
-            <?= htmlspecialchars($mensaje) ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-        </div>
-    <?php endif; ?>
-
-    <div class="form-container">
-        <h2 class="form-title">Registrarse</h2>
-        <form method="POST" action="">
-            <div class="mb-3">
-                <label for="nombre" class="form-label">Nombre completo:</label>
-                <input type="text" class="form-control" name="nombre" id="nombre" value="<?= $nombre_value ?>" required autocomplete="name">
+    <div class="register-container">
+    
+        <?php if ($mensaje): ?><div class="alert alert-<?= $mensaje_tipo ?>"><?= $mensaje ?></div><?php endif; ?>
+        <form action="register.php" method="POST">
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Tu Nombre Completo" required>
+                <label for="nombre">Nombre Completo</label>
             </div>
-
-            <div class="mb-3">
-                <label for="email" class="form-label">Correo electrónico:</label>
-                <input type="email" class="form-control" name="email" id="email" value="<?= $email_value ?>" required autocomplete="email">
+            <div class="form-floating mb-3">
+                <input type="email" class="form-control" id="email" name="email" placeholder="name@example.com" required>
+                <label for="email">Correo Electrónico</label>
             </div>
-
-            <div class="mb-3">
-                <label for="password" class="form-label">Contraseña:</label>
-                <input type="password" class="form-control" name="password" id="password" required autocomplete="new-password">
+            <div class="form-floating mb-3">
+                <input type="password" class="form-control" id="password" name="password" placeholder="Contraseña" required>
+                <label for="password">Contraseña</label>
             </div>
-
-            <div class="mb-3">
-                <label for="tipo_usuario" class="form-label">Tipo de usuario:</label>
-                <select class="form-select" name="tipo_usuario" id="tipo_usuario">
-                    <option value="cliente" <?= ($selected_tipo_usuario === 'cliente') ? 'selected' : '' ?>>Cliente</option>
-                    <option value="arrendador" <?= ($selected_tipo_usuario === 'arrendador') ? 'selected' : '' ?>>Arrendador</option>
+            <div class="form-floating mb-3">
+                <select class="form-select" id="tipo_usuario" name="tipo_usuario" required>
+                    <option value="" disabled selected>Selecciona tu tipo de usuario</option>
+                    <option value="cliente">Cliente</option>
+                    <option value="arrendador">Arrendador</option>
                 </select>
+                <label for="tipo_usuario">Tipo de Usuario</label>
             </div>
-
-            <input type="submit" name="register" value="Registrar">
+            <button type="submit" class="btn btn-primary w-100">Registrarse</button>
         </form>
+        <p class="mt-3">¿Ya tienes una cuenta? <a href="index.php">Inicia Sesión</a></p>
     </div>
-
-    <div class="login-text">
-        ¿Ya tienes cuenta? <a href="index.php">Inicia sesión aquí</a>
-    </div>
-
-    <footer class="text-center mt-5 mb-3 text-muted">
-        <p>&copy; <?= date("Y") ?> Arriendo de Herramientas. Todos los derechos reservados.</p>
-    </footer>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
