@@ -18,6 +18,12 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 try {$conexion = new mysqli($host, $usuario, $clave, $bd);$conexion->set_charset("utf8mb4");}
 catch (mysqli_sql_exception $e) {die("Error de conexión a la base de datos. Por favor, inténtalo de nuevo más tarde.");}
 $mensaje = "";$mensaje_tipo = "";
+if (isset($_SESSION['mensaje'])) {
+    $mensaje = $_SESSION['mensaje'];
+    $mensaje_tipo = $_SESSION['mensaje_tipo'];
+    unset($_SESSION['mensaje']);
+    unset($_SESSION['mensaje_tipo']);
+}
 $user_name = $_SESSION['user_name'];
 $user_id = $_SESSION['user_id'];
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
@@ -34,14 +40,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 $newFileName = uniqid('tool_') . '.' . $imageFileType;
                 $targetFilePath = $uploadDir . $newFileName;
                 if (move_uploaded_file($imagen['tmp_name'], $targetFilePath)) {$imagePath = $targetFilePath;}
-                else {$mensaje = "Error al subir la imagen.";$mensaje_tipo = "danger";}
-            } else {$mensaje = "Tipo de archivo no permitido. Solo se permiten JPG, JPEG, PNG y GIF.";$mensaje_tipo = "danger";}
+                else {
+                    $_SESSION['mensaje'] = "Error al subir la imagen.";
+                    $_SESSION['mensaje_tipo'] = "danger";
+                    header("Location: dashboardarrendador.php");
+                    exit;
+                }
+            } else {
+                $_SESSION['mensaje'] = "Tipo de archivo no permitido. Solo se permiten JPG, JPEG, PNG y GIF.";
+                $_SESSION['mensaje_tipo'] = "danger";
+                header("Location: dashboardarrendador.php");
+                exit;
+            }
         }
-        if (empty($mensaje)) {
+        if (empty($_SESSION['mensaje'])) {
             $stmt = $conexion->prepare("INSERT INTO herramientas (id_usuario, nombre, descripcion, precio_dia, imagen) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("isdss", $user_id, $nombre, $descripcion, $precio_dia, $imagePath);
-            if ($stmt->execute()) {$mensaje = "Herramienta agregada exitosamente.";$mensaje_tipo = "success";}
-            else {$mensaje = "Error al agregar la herramienta: " . $stmt->error;$mensaje_tipo = "danger";}
+            $stmt->bind_param("issds", $user_id, $nombre, $descripcion, $precio_dia, $imagePath);
+            if ($stmt->execute()) {
+                $_SESSION['mensaje'] = "Herramienta agregada exitosamente.";
+                $_SESSION['mensaje_tipo'] = "success";
+                header("Location: dashboardarrendador.php");
+                exit;
+            }
+            else {
+                $_SESSION['mensaje'] = "Error al agregar la herramienta: " . $stmt->error;
+                $_SESSION['mensaje_tipo'] = "danger";
+                header("Location: dashboardarrendador.php");
+                exit;
+            }
             $stmt->close();
         }
     } elseif ($_POST['action'] == 'edit_tool' && isset($_POST['tool_id'])) {
@@ -63,14 +89,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 $newFileName = uniqid('tool_') . '.' . $imageFileType;
                 $targetFilePath = $uploadDir . $newFileName;
                 if (move_uploaded_file($new_image['tmp_name'], $targetFilePath)) {$imagePath = $targetFilePath;}
-                else {$mensaje = "Error al subir la nueva imagen.";$mensaje_tipo = "danger";}
-            } else {$mensaje = "Tipo de archivo no permitido para la nueva imagen. Solo se permiten JPG, JPEG, PNG y GIF.";$mensaje_tipo = "danger";}
+                else {
+                    $_SESSION['mensaje'] = "Error al subir la nueva imagen.";
+                    $_SESSION['mensaje_tipo'] = "danger";
+                    header("Location: dashboardarrendador.php");
+                    exit;
+                }
+            } else {
+                $_SESSION['mensaje'] = "Tipo de archivo no permitido para la nueva imagen. Solo se permiten JPG, JPEG, PNG y GIF.";
+                $_SESSION['mensaje_tipo'] = "danger";
+                header("Location: dashboardarrendador.php");
+                exit;
+            }
         }
-        if (empty($mensaje)) {
+        if (empty($_SESSION['mensaje'])) {
             $stmt = $conexion->prepare("UPDATE herramientas SET nombre = ?, descripcion = ?, precio_dia = ?, imagen = ?, disponible = ? WHERE id = ? AND id_usuario = ?");
             $stmt->bind_param("ssdsiii", $nombre, $descripcion, $precio_dia, $imagePath, $disponible, $tool_id, $user_id);
-            if ($stmt->execute()) {$mensaje = "Herramienta actualizada exitosamente.";$mensaje_tipo = "success";}
-            else {$mensaje = "Error al actualizar la herramienta: " . $stmt->error;$mensaje_tipo = "danger";}
+            if ($stmt->execute()) {
+                $_SESSION['mensaje'] = "Herramienta actualizada exitosamente.";
+                $_SESSION['mensaje_tipo'] = "success";
+                header("Location: dashboardarrendador.php");
+                exit;
+            }
+            else {
+                $_SESSION['mensaje'] = "Error al actualizar la herramienta: " . $stmt->error;
+                $_SESSION['mensaje_tipo'] = "danger";
+                header("Location: dashboardarrendador.php");
+                exit;
+            }
             $stmt->close();
         }
     } elseif ($_POST['action'] == 'delete_tool' && isset($_POST['tool_id'])) {
@@ -85,8 +131,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
         $stmt_select_img->close();
         $stmt_delete = $conexion->prepare("DELETE FROM herramientas WHERE id = ? AND id_usuario = ?");
         $stmt_delete->bind_param("ii", $tool_id, $user_id);
-        if ($stmt_delete->execute()) {$mensaje = "Herramienta eliminada exitosamente.";$mensaje_tipo = "success";}
-        else {$mensaje = "Error al eliminar la herramienta: " . $stmt_delete->error;$mensaje_tipo = "danger";}
+        if ($stmt_delete->execute()) {
+            $_SESSION['mensaje'] = "Herramienta eliminada exitosamente.";
+            $_SESSION['mensaje_tipo'] = "success";
+            header("Location: dashboardarrendador.php");
+            exit;
+        }
+        else {
+            $_SESSION['mensaje'] = "Error al eliminar la herramienta: " . $stmt_delete->error;
+            $_SESSION['mensaje_tipo'] = "danger";
+            header("Location: dashboardarrendador.php");
+            exit;
+        }
         $stmt_delete->close();
     } elseif ($_POST['action'] == 'toggle_availability' && isset($_POST['tool_id'])) {
         $tool_id = $_POST['tool_id'];
@@ -97,8 +153,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
             $row_dispo = $result_dispo->fetch_assoc();$new_disponibilidad = !$row_dispo['disponible'];
             $stmt_update_dispo = $conexion->prepare("UPDATE herramientas SET disponible = ? WHERE id = ? AND id_usuario = ?");
             $stmt_update_dispo->bind_param("iii", $new_disponibilidad, $tool_id, $user_id);
-            if ($stmt_update_dispo->execute()) {$mensaje = "Disponibilidad de la herramienta actualizada.";$mensaje_tipo = "success";}
-            else {$mensaje = "Error al actualizar la disponibilidad: " . $stmt_update_dispo->error;$mensaje_tipo = "danger";}
+            if ($stmt_update_dispo->execute()) {
+                $_SESSION['mensaje'] = "Disponibilidad de la herramienta actualizada.";
+                $_SESSION['mensaje_tipo'] = "success";
+                header("Location: dashboardarrendador.php");
+                exit;
+            }
+            else {
+                $_SESSION['mensaje'] = "Error al actualizar la disponibilidad: " . $stmt_update_dispo->error;
+                $_SESSION['mensaje_tipo'] = "danger";
+                header("Location: dashboardarrendador.php");
+                exit;
+            }
             $stmt_update_dispo->close();
         }
         $stmt_select_dispo->close();
@@ -123,7 +189,7 @@ $conexion->close();
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         body{background:#f0f2f5;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;display:flex;min-height:100vh;}
-        .hero{background:linear-gradient(135deg,#4e54c8,#8f94fb);color:white;padding:40px 20px;box-shadow:0 4px 15px rgba(0,0,0,0.2);margin-bottom:30px;text-align:center;}
+        .hero{background:linear-gradient(135deg,#4e54c8,#8f94fb);color:white;padding:40px 20px;box-shadow:0 4px 15px rgba(0,0,0,0.2);margin-bottom:30px;text-align:center;position:relative;}
         .hero h1{font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:2.5rem;}
         .hero p{font-size:1.2rem;opacity:0.85;margin-top:10px;}
         .alert{max-width:90%;margin:20px auto;text-align:center;font-weight:600;}
@@ -152,11 +218,25 @@ $conexion->close();
         .tool-card .btn{font-size:0.9rem;padding:8px 12px;}
         .disponible-checkbox-group{display:flex;align-items:center;justify-content:flex-end;}
         .disponible-checkbox-group .form-check-label{margin-left:5px;margin-bottom:0;}
+        .hero .logo-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+        }
+        .hero .logo-container img {
+            max-width: 80px;
+            height: auto;
+            border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
     </style>
 </head>
 <body>
     <div class="sidebar" id="sidebar">
-        <div class="sidebar-header"><h3>Área Arrendador</h3></div>
+        <div class="sidebar-header">
+            <h3>Área Arrendador</h3>
+        </div>
         <ul class="nav flex-column sidebar-menu">
             <li class="nav-item"><a class="nav-link active" href="#"><i class="bi bi-house-door-fill"></i> <span>Inicio</span></a></li>
             <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-plus-circle"></i> <span>Añadir Herramienta</span></a></li>
@@ -168,7 +248,15 @@ $conexion->close();
         <button class="btn toggle-btn" id="sidebarToggle"><i class="bi bi-chevron-left"></i></button>
     </div>
     <div class="content">
-        <div class="hero"><div class="container"><h1>¡Hola, <?= htmlspecialchars($user_name) ?>!</h1><p>Gestiona tus herramientas y arriendos aquí.</p></div></div>
+        <div class="hero">
+            <div class="container">
+                <div class="logo-container">
+                    <img src="logo.png" alt="Logo">
+                </div>
+                <h1>¡Hola, <?= htmlspecialchars($user_name) ?>!</h1>
+                <p>Gestiona tus herramientas y arriendos aquí.</p>
+            </div>
+        </div>
         <?php if ($mensaje): ?><div class="alert alert-<?= $mensaje_tipo ?> alert-dismissible fade show" role="alert"><?= htmlspecialchars($mensaje) ?><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button></div><?php endif; ?>
         <div class="container mt-4">
             <h2 class="mb-4 text-center" style="color: #4e54c8;" id="form-title">Añadir Nueva Herramienta</h2>
@@ -262,7 +350,7 @@ $conexion->close();
                     document.cookie = `user_timezone=${encodeURIComponent(userTimeZone)}; path=/; max-age=31536000`;
                 }
             } catch (e) {console.error("Error al obtener la zona horaria del usuario:", e);}
-        }
+        }logo
         function getCookie(name) {const value = `; ${document.cookie}`;const parts = value.split(`; ${name}=`);if (parts.length === 2) return parts.pop().split(';').shift();}
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             document.getElementById('sidebar').classList.toggle('collapsed');

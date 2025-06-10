@@ -1,12 +1,9 @@
 <?php
-$host = "127.0.0.1";  // o "localhost"
-$usuario = "root";    // usuario por defecto en XAMPP
-$clave = "1234";          // usualmente vacío en XAMPP, si tienes contraseña ponla aquí
+$host = "127.0.0.1";
+$usuario = "root";
+$clave = "1234";
 $bd = "arriendo_herramientas";
-
-$conexion = new mysqli($host, $usuario, $clave, $bd);
-
-if ($conexion->connect_error) {
-    die("Error de conexión: " . $conexion->connect_error);
-}
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+try {$conexion = new mysqli($host, $usuario, $clave, $bd);$conexion->set_charset("utf8mb4");}
+catch (mysqli_sql_exception $e) {die("Error de conexión a la base de datos. Por favor, inténtalo de nuevo más tarde.");}
 ?>
