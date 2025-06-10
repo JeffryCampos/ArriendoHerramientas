@@ -1,7 +1,7 @@
 <?php
 $host = "127.0.0.1";  // o "localhost"
 $usuario = "root";    // usuario por defecto en XAMPP
-$clave = "";          // usualmente vacío en XAMPP, si tienes contraseña ponla aquí
+$clave = "1234";          // usualmente vacío en XAMPP, si tienes contraseña ponla aquí
 $bd = "arriendo_herramientas";
 
 $conexion = new mysqli($host, $usuario, $clave, $bd);

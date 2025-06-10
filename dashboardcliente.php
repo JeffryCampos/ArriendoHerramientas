@@ -1,0 +1,427 @@
+<?php
+session_start();
+
+$user_timezone = 'America/Santiago';
+
+if (isset($_COOKIE['user_timezone']) && !empty($_COOKIE['user_timezone'])) {
+    $user_timezone = $_COOKIE['user_timezone'];
+}
+
+date_default_timezone_set($user_timezone);
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit;
+}
+
+if ($_SESSION['user_type'] !== 'cliente') {
+    if ($_SESSION['user_type'] === 'arrendador') {
+        header("Location: dashboardarrendador.php");
+    } else {
+        header("Location: index.php");
+    }
+    exit;
+}
+
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
+
+$host = "127.0.0.1";
+$usuario = "root";
+$clave = "1234";
+$bd = "arriendo_herramientas";
+
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+try {
+    $conexion = new mysqli($host, $usuario, $clave, $bd);
+    $conexion->set_charset("utf8mb4");
+} catch (mysqli_sql_exception $e) {
+    die("Error de conexión a la base de datos. Por favor, inténtalo de nuevo más tarde.");
+}
+
+$mensaje = "";
+$mensaje_tipo = "success";
+
+if (isset($_GET['registro']) && $_GET['registro'] == 'exito') {
+    $mensaje = "¡Registro exitoso! Ahora puedes explorar las herramientas.";
+}
+
+$user_name = $_SESSION['user_name'];
+
+$order_by = "h.fecha_publicacion DESC";
+$current_filter = "mas_reciente";
+
+if (isset($_GET['ordenar_por'])) {
+    switch ($_GET['ordenar_por']) {
+        case 'mas_antiguo':
+            $order_by = "h.fecha_publicacion ASC";
+            $current_filter = "mas_antiguo";
+            break;
+        case 'mas_caro':
+            $order_by = "h.precio_dia DESC";
+            $current_filter = "mas_caro";
+            break;
+        case 'mas_barato':
+            $order_by = "h.precio_dia ASC";
+            $current_filter = "mas_barato";
+            break;
+        case 'mas_reciente':
+        default:
+            $order_by = "h.fecha_publicacion DESC";
+            $current_filter = "mas_reciente";
+            break;
+    }
+}
+
+$herramientas = [];
+$sql_herramientas = "SELECT h.id, h.nombre, h.descripcion, h.precio_dia, h.imagen, h.fecha_publicacion, u.nombre AS arrendador_nombre
+                     FROM herramientas h
+                     JOIN usuarios u ON h.id_usuario = u.id
+                     WHERE h.disponible = TRUE
+                     ORDER BY " . $order_by;
+$result_herramientas = $conexion->query($sql_herramientas);
+
+if ($result_herramientas->num_rows > 0) {
+    while ($row = $result_herramientas->fetch_assoc()) {
+        $herramientas[] = $row;
+    }
+}
+
+$conexion->close();
+
+function time_ago($datetime, $full = false) {
+    $now = new DateTime;
+    $ago = new DateTime($datetime);
+    $diff = $now->diff($ago);
+
+    $diff->w = floor($diff->d / 7);
+    $diff->d -= $diff->w * 7;
+
+    $string = array(
+        'y' => 'año',
+        'm' => 'mes',
+        'w' => 'semana',
+        'd' => 'día',
+        'h' => 'hora',
+        'i' => 'minuto',
+        's' => 'segundo',
+    );
+    foreach ($string as $k => &$v) {
+        if ($diff->$k) {
+            $v = $diff->$k . ' ' . $v . ($diff->$k > 1 ? 's' : '');
+        } else {
+            unset($string[$k]);
+        }
+    }
+
+    if (!$full) $string = array_slice($string, 0, 1);
+    return $string ? 'Hace ' . implode(', ', $string) : 'Justo ahora';
+}
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title>Arriendo de Herramientas - Dashboard Cliente</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            min-height: 100vh;
+        }
+        .hero {
+            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            color: white;
+            padding: 40px 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .hero h1 {
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            font-size: 2.5rem;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            opacity: 0.85;
+            margin-top: 10px;
+        }
+        .alert {
+            max-width: 90%;
+            margin: 20px auto;
+            text-align: center;
+            font-weight: 600;
+        }
+        .sidebar {
+            width: 250px;
+            background-color: #343a40;
+            color: white;
+            padding-top: 20px;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        .sidebar.collapsed {
+            width: 80px;
+        }
+        .sidebar-header {
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 15px;
+        }
+        .sidebar-header h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .sidebar-menu a {
+            padding: 12px 20px;
+            color: #adb5bd;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            transition: background-color 0.2s, color 0.2s;
+            border-left: 3px solid transparent;
+        }
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background-color: #495057;
+            color: white;
+            border-left: 3px solid #007bff;
+        }
+        .sidebar-menu a i {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+        .sidebar.collapsed .sidebar-menu span {
+            display: none;
+        }
+        .sidebar.collapsed .sidebar-header h3 {
+            display: none;
+        }
+        .sidebar.collapsed .sidebar-menu a {
+            justify-content: center;
+            padding: 12px 0;
+        }
+        .sidebar.collapsed .sidebar-menu a i {
+            margin-right: 0;
+        }
+        .toggle-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 15px auto;
+            display: block;
+            width: fit-content;
+        }
+        .content {
+            flex-grow: 1;
+            padding: 20px;
+        }
+        .tool-card {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease-in-out;
+        }
+        .tool-card:hover {
+            transform: translateY(-5px);
+        }
+        .tool-card img {
+            max-height: 200px;
+            width: 100%;
+            object-fit: cover;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+        .tool-card .card-body {
+            padding: 15px;
+        }
+        .tool-card .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #4e54c8;
+        }
+        .tool-card .card-text {
+            font-size: 0.95rem;
+            color: #6c757d;
+        }
+        .tool-card .card-price {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #28a745;
+        }
+        .tool-card .card-owner, .tool-card .card-publication-date {
+            font-size: 0.85rem;
+            color: #4e54c8;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+
+        .filter-buttons .btn {
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>Área Cliente</h3>
+        </div>
+        <ul class="nav flex-column sidebar-menu">
+            <li class="nav-item">
+                <a class="nav-link active" href="#"><i class="bi bi-house-door-fill"></i> <span>Inicio</span></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#"><i class="bi bi-tools"></i> <span>Herramientas Disponibles</span></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#"><i class="bi bi-box-seam"></i> <span>Mis Arriendos</span></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#"><i class="bi bi-person-circle"></i> <span>Mi Perfil</span></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="logout.php"><i class="bi bi-box-arrow-right"></i> <span>Cerrar Sesión</span></a>
+            </li>
+        </ul>
+        <button class="btn toggle-btn" id="sidebarToggle">
+            <i class="bi bi-chevron-left"></i>
+        </button>
+    </div>
+
+    <div class="content">
+        <div class="hero">
+            <div class="container">
+                <h1>¡Hola, <?= htmlspecialchars($user_name) ?>!</h1>
+                <p>Explora las herramientas disponibles para tu próximo proyecto.</p>
+            </div>
+        </div>
+
+        <?php if ($mensaje): ?>
+            <div class="alert alert-<?= $mensaje_tipo ?> alert-dismissible fade show" role="alert">
+                <?= htmlspecialchars($mensaje) ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+        <?php endif; ?>
+
+        <div class="container mt-4">
+            <h2 class="mb-4 text-center" style="color: #4e54c8;">Herramientas Disponibles para Arriendo</h2>
+
+            <div class="d-flex flex-wrap justify-content-center mb-4 filter-buttons">
+                <a href="dashboardcliente.php?ordenar_por=mas_reciente" class="btn btn-outline-primary <?= ($current_filter == 'mas_reciente') ? 'active' : '' ?>">
+                    Más Recientes
+                </a>
+                <a href="dashboardcliente.php?ordenar_por=mas_antiguo" class="btn btn-outline-primary <?= ($current_filter == 'mas_antiguo') ? 'active' : '' ?>">
+                    Más Antiguas
+                </a>
+                <a href="dashboardcliente.php?ordenar_por=mas_caro" class="btn btn-outline-primary <?= ($current_filter == 'mas_caro') ? 'active' : '' ?>">
+                    Más Caras
+                </a>
+                <a href="dashboardcliente.php?ordenar_por=mas_barato" class="btn btn-outline-primary <?= ($current_filter == 'mas_barato') ? 'active' : '' ?>">
+                    Más Baratas
+                </a>
+            </div>
+
+            <?php if (empty($herramientas)): ?>
+                <div class="alert alert-info text-center" role="alert">
+                    No hay herramientas disponibles en este momento. Vuelve más tarde.
+                </div>
+            <?php else: ?>
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                    <?php foreach ($herramientas as $herramienta): ?>
+                        <div class="col">
+                            <div class="card h-100 tool-card">
+                                <?php
+                                $imagePath = !empty($herramienta['imagen'])
+                                    ? htmlspecialchars($herramienta['imagen'])
+                                    : 'https://via.placeholder.com/400x200?text=Sin+Imagen';
+                                ?>
+                                <img src="<?= $imagePath ?>" class="card-img-top" alt="<?= htmlspecialchars($herramienta['nombre']) ?>">
+                                <div class="card-body">
+                                    <h5 class="card-title"><?= htmlspecialchars($herramienta['nombre']) ?></h5>
+                                    <p class="card-text"><?= htmlspecialchars($herramienta['descripcion']) ?></p>
+                                    <p class="card-price">Precio por día: $<?= number_format($herramienta['precio_dia'], 2, ',', '.') ?></p>
+                                    <p class="card-owner">Publicado por: <?= htmlspecialchars($herramienta['arrendador_nombre']) ?></p>
+                                    <p class="card-publication-date">Publicada: <?= time_ago($herramienta['fecha_publicacion']) ?></p>
+                                    <a href="#" class="btn btn-primary" style="background-color: #4e54c8; border-color: #4e54c8;">Ver Detalles</a>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <footer class="text-center mt-5 mb-3 text-muted">
+            <p>&copy; <?= date("Y") ?> Arriendo de Herramientas. Todos los derechos reservados.</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        if (!document.cookie.includes('user_timezone') || getCookie('user_timezone') === '') {
+            try {
+                const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (userTimeZone) {
+                    fetch(window.location.pathname, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'user_timezone=' + encodeURIComponent(userTimeZone)
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                        }
+                    })
+                    .catch(error => console.error('Error al enviar zona horaria:', error));
+
+                    document.cookie = `user_timezone=${encodeURIComponent(userTimeZone)}; path=/; max-age=31536000`;
+                }
+            } catch (e) {
+                console.error("Error al obtener la zona horaria del usuario:", e);
+            }
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+            const icon = this.querySelector('i');
+            if (document.getElementById('sidebar').classList.contains('collapsed')) {
+                icon.classList.remove('bi-chevron-left');
+                icon.classList.add('bi-chevron-right');
+            } else {
+                icon.classList.remove('bi-chevron-right');
+                icon.classList.add('bi-chevron-left');
+            }
+        });
+    </script>
+</body>
+</html>
