@@ -40,7 +40,6 @@ if (isset($_SESSION['mensaje'])) {
 $user_name = $_SESSION['user_name'];
 $user_id = $_SESSION['user_id'];
 
-// Function to calculate time elapsed in a human-readable format
 function time_elapsed_string($datetime, $full = false) {
     $now = new DateTime;
     $ago = new DateTime($datetime);
@@ -70,13 +69,11 @@ function time_elapsed_string($datetime, $full = false) {
     return $string ? 'hace ' . implode(', ', $string) : 'justo ahora';
 }
 
-// Handle rent request
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'rent_tool') {
     $tool_id = $_POST['tool_id'];
     $fecha_inicio = $_POST['fecha_inicio'];
     $fecha_fin = $_POST['fecha_fin'];
 
-    // Check if dates are valid and start date is not in the past
     $today = date('Y-m-d');
     if ($fecha_inicio < $today || $fecha_fin < $fecha_inicio) {
         $_SESSION['mensaje'] = "Fechas de arriendo inválidas. Asegúrate que la fecha de inicio no sea anterior a hoy y que la fecha fin sea posterior a la fecha de inicio.";
@@ -85,7 +82,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         exit;
     }
 
-    // Check if the tool is available during the requested period
     $stmt_check_availability = $conexion->prepare(
         "SELECT COUNT(*) FROM solicitudes 
          WHERE id_herramienta = ? 
@@ -122,7 +118,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     exit;
 }
 
-// Fetch all available tools for display
 $herramientas = [];
 $sql_herramientas = "SELECT h.id, h.nombre, h.descripcion, h.precio_dia, h.imagen, h.fecha_publicacion, u.nombre as arrendador_nombre
                      FROM herramientas h
@@ -254,7 +249,6 @@ $conexion->close();
         <footer class="text-center mt-5 mb-3 text-muted"><p>&copy; <?= date("Y") ?> Arriendo de Herramientas. Todos los derechos reservados.</p></footer>
     </div>
 
-    <!-- Rent Modal -->
     <div class="modal fade" id="rentModal" tabindex="-1" aria-labelledby="rentModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -286,7 +280,6 @@ $conexion->close();
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Set user timezone cookie if not already set
         if (!document.cookie.includes('user_timezone') || getCookie('user_timezone') === '') {
             try {
                 const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -299,7 +292,6 @@ $conexion->close();
                         body: 'user_timezone=' + encodeURIComponent(userTimeZone)
                     }).then(response => {
                         if (response.ok) {
-                            // Reload or handle response
                         }
                     }).catch(error => console.error('Error al enviar zona horaria:', error));
                     document.cookie = `user_timezone=${encodeURIComponent(userTimeZone)}; path=/; max-age=31536000`;
