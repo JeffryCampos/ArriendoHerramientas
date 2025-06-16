@@ -3,7 +3,7 @@ session_start();
 
 $host = "127.0.0.1";
 $usuario = "root";
-$clave = "1234";
+$clave = "";
 $bd = "arriendo_herramientas";
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);

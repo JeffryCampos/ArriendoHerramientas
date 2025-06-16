@@ -6,7 +6,7 @@ if (isset($_SESSION['user_id'])) {
     else {header("Location: index.php");}
     exit;
 }
-$host = "127.0.0.1";$usuario = "root";$clave = "1234";$bd = "arriendo_herramientas";
+$host = "127.0.0.1";$usuario = "root";$clave = "";$bd = "arriendo_herramientas";
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 try {$conexion = new mysqli($host, $usuario, $clave, $bd);$conexion->set_charset("utf8mb4");}
 catch (mysqli_sql_exception $e) {die("Error de conexión a la base de datos. Por favor, inténtalo de nuevo más tarde.");}
@@ -132,7 +132,7 @@ $conexion->close();
             </div>
         </div>
         <footer>
-            &copy; <?= date("Y") ?> Arriendo de Herramientas. Todos los derechos reservados.
+            &copy; <?= date("Y") ?> TuTallerOnline. Todos los derechos reservados.
         </footer>
     </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

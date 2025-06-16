@@ -1,14 +1,17 @@
 <?php
 session_start();
+
 $user_timezone = 'America/Santiago';
 if (isset($_COOKIE['user_timezone']) && !empty($_COOKIE['user_timezone'])) {
     $user_timezone = $_COOKIE['user_timezone'];
 }
 date_default_timezone_set($user_timezone);
+
 if (!isset($_SESSION['user_id'])) {
     header("Location: index.php");
     exit;
 }
+
 if ($_SESSION['user_type'] !== 'cliente') {
     if ($_SESSION['user_type'] === 'arrendador') {
         header("Location: dashboardarrendador.php");
@@ -17,18 +20,26 @@ if ($_SESSION['user_type'] !== 'cliente') {
     }
     exit;
 }
+
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
-$host = "127.0.0.1";$usuario = "root";$clave = "1234";$bd = "arriendo_herramientas";
+
+$host = "127.0.0.1";
+$usuario = "root";
+$clave = "";
+$bd = "arriendo_herramientas";
+
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
 try {
     $conexion = new mysqli($host, $usuario, $clave, $bd);
     $conexion->set_charset("utf8mb4");
 } catch (mysqli_sql_exception $e) {
     die("Error de conexión a la base de datos. Por favor, inténtalo de nuevo más tarde.");
 }
+
 $mensaje = "";
 $mensaje_tipo = "";
 if (isset($_SESSION['mensaje'])) {
@@ -37,6 +48,7 @@ if (isset($_SESSION['mensaje'])) {
     unset($_SESSION['mensaje']);
     unset($_SESSION['mensaje_tipo']);
 }
+
 $user_name = $_SESSION['user_name'];
 $user_id = $_SESSION['user_id'];
 
@@ -48,15 +60,7 @@ function time_elapsed_string($datetime, $full = false) {
     $diff->w = floor($diff->d / 7);
     $diff->d -= $diff->w * 7;
 
-    $string = array(
-        'y' => 'año',
-        'm' => 'mes',
-        'w' => 'semana',
-        'd' => 'día',
-        'h' => 'hora',
-        'i' => 'minuto',
-        's' => 'segundo',
-    );
+    $string = array('y' => 'año', 'm' => 'mes', 'w' => 'semana', 'd' => 'día', 'h' => 'hora', 'i' => 'minuto', 's' => 'segundo');
     foreach ($string as $k => &$v) {
         if ($diff->$k) {
             $v = $diff->$k . ' ' . $v . ($diff->$k > 1 ? 's' : '');
@@ -73,8 +77,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     $tool_id = $_POST['tool_id'];
     $fecha_inicio = $_POST['fecha_inicio'];
     $fecha_fin = $_POST['fecha_fin'];
-
     $today = date('Y-m-d');
+
     if ($fecha_inicio < $today || $fecha_fin < $fecha_inicio) {
         $_SESSION['mensaje'] = "Fechas de arriendo inválidas. Asegúrate que la fecha de inicio no sea anterior a hoy y que la fecha fin sea posterior a la fecha de inicio.";
         $_SESSION['mensaje_tipo'] = "danger";
@@ -84,19 +88,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 
     $stmt_check_availability = $conexion->prepare(
         "SELECT COUNT(*) FROM solicitudes 
-         WHERE id_herramienta = ? 
-         AND estado IN ('pendiente', 'aprobado') 
-         AND (
-             (fecha_inicio <= ? AND fecha_fin >= ?) OR
-             (fecha_inicio <= ? AND fecha_fin >= ?) OR
-             (fecha_inicio >= ? AND fecha_fin <= ?)
-         )"
+         WHERE id_herramienta = ? AND estado IN ('pendiente', 'aprobado') 
+         AND ((fecha_inicio <= ? AND fecha_fin >= ?) OR (fecha_inicio <= ? AND fecha_fin >= ?) OR (fecha_inicio >= ? AND fecha_fin <= ?))"
     );
     $stmt_check_availability->bind_param("issssss", $tool_id, $fecha_fin, $fecha_inicio, $fecha_fin, $fecha_inicio, $fecha_inicio, $fecha_fin);
     $stmt_check_availability->execute();
     $result_availability = $stmt_check_availability->get_result();
-    $row_availability = $result_availability->fetch_row();
-    $conflicting_requests = $row_availability[0];
+    $conflicting_requests = $result_availability->fetch_row()[0];
     $stmt_check_availability->close();
 
     if ($conflicting_requests > 0) {
@@ -124,15 +122,31 @@ $sql_herramientas = "SELECT h.id, h.nombre, h.descripcion, h.precio_dia, h.image
                      JOIN usuarios u ON h.id_usuario = u.id
                      WHERE h.disponible = TRUE
                      ORDER BY h.fecha_publicacion DESC";
-$stmt_herramientas = $conexion->prepare($sql_herramientas);
-$stmt_herramientas->execute();
-$result_herramientas = $stmt_herramientas->get_result();
+$result_herramientas = $conexion->query($sql_herramientas);
 if ($result_herramientas->num_rows > 0) {
     while ($row = $result_herramientas->fetch_assoc()) {
         $herramientas[] = $row;
     }
 }
-$stmt_herramientas->close();
+
+$mis_solicitudes = [];
+$sql_mis_solicitudes = "SELECT s.id, h.nombre as herramienta_nombre, u.nombre as arrendador_nombre, s.fecha_inicio, s.fecha_fin, s.estado, s.fecha_solicitud 
+                        FROM solicitudes s
+                        JOIN herramientas h ON s.id_herramienta = h.id
+                        JOIN usuarios u ON h.id_usuario = u.id
+                        WHERE s.id_usuario = ? 
+                        ORDER BY s.fecha_solicitud DESC";
+$stmt_mis_solicitudes = $conexion->prepare($sql_mis_solicitudes);
+$stmt_mis_solicitudes->bind_param("i", $user_id);
+$stmt_mis_solicitudes->execute();
+$result_mis_solicitudes = $stmt_mis_solicitudes->get_result();
+if ($result_mis_solicitudes->num_rows > 0) {
+    while($row = $result_mis_solicitudes->fetch_assoc()) {
+        $mis_solicitudes[] = $row;
+    }
+}
+$stmt_mis_solicitudes->close();
+
 $conexion->close();
 ?>
 <!DOCTYPE html>
@@ -153,7 +167,7 @@ $conexion->close();
         .sidebar.collapsed{width:80px;}
         .sidebar-header{padding:10px 20px;margin-bottom:20px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:15px;}
         .sidebar-header h3{font-size:1.5rem;margin-bottom:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-        .sidebar-menu a{padding:12px 20px;color:#adb5bd;text-decoration:none;display:flex;align-items:center;transition:background-color 0.2s,color 0.2s;border-left:3px solid transparent;}
+        .sidebar-menu a{padding:12px 20px;color:#adb5bd;text-decoration:none;display:flex;align-items:center;transition:background-color 0.2s,color 0.2s;border-left:3px solid transparent; cursor: pointer;}
         .sidebar-menu a:hover,.sidebar-menu a.active{background-color:#495057;color:white;border-left:3px solid #007bff;}
         .sidebar-menu a i{margin-right:10px;font-size:1.2rem;}
         .sidebar.collapsed .sidebar-menu span{display:none;}
@@ -172,91 +186,122 @@ $conexion->close();
         .tool-card .card-publication-date, .tool-card .card-arrendador{font-size:0.85rem;color:#4e54c8;margin-top:10px;font-weight:500;}
         .tool-card .actions{margin-top:15px;display:flex;justify-content:space-around;}
         .tool-card .btn{font-size:0.9rem;padding:8px 12px;}
-        .hero .logo-container {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 10;
-        }
-        .hero .logo-container img {
-            max-width: 80px;
-            height: auto;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
+        .hero .logo-container {position: absolute;top: 20px;right: 20px;z-index: 10;}
+        .hero .logo-container img {max-width: 80px;height: auto;border-radius: 8px;box-shadow: 0 2px 10px rgba(0,0,0,0.1);}
+        .hidden-section { display: none; }
     </style>
 </head>
 <body>
-    <div class="sidebar" id="sidebar">
+    <div class="sidebar collapsed" id="sidebar">
         <div class="sidebar-header">
             <h3>Área Cliente</h3>
         </div>
         <ul class="nav flex-column sidebar-menu">
-            <li class="nav-item"><a class="nav-link active" href="#"><i class="bi bi-house-door-fill"></i> <span>Inicio</span></a></li>
-            <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-basket"></i> <span>Mis Arriendos</span></a></li>
+            <li class="nav-item"><a class="nav-link active" id="link-inicio"><i class="bi bi-house-door-fill"></i> <span>Inicio</span></a></li>
+            <li class="nav-item"><a class="nav-link" id="link-mis-arriendos"><i class="bi bi-basket"></i> <span>Mis Arriendos</span></a></li>
             <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-person-circle"></i> <span>Mi Perfil</span></a></li>
             <li class="nav-item"><a class="nav-link" href="logout.php"><i class="bi bi-box-arrow-right"></i> <span>Cerrar Sesión</span></a></li>
         </ul>
-        <button class="btn toggle-btn" id="sidebarToggle"><i class="bi bi-chevron-left"></i></button>
+        <button class="btn toggle-btn" id="sidebarToggle"><i class="bi bi-chevron-right"></i></button>
     </div>
+
     <div class="content">
         <div class="hero">
             <div class="container">
-                <div class="logo-container">
-                    <img src="logo.png" alt="Logo">
-                </div>
+                <div class="logo-container"><img src="logo.png" alt="Logo"></div>
                 <h1>¡Hola, <?= htmlspecialchars($user_name) ?>!</h1>
                 <p>Encuentra las herramientas que necesitas para tus proyectos.</p>
             </div>
         </div>
+
         <?php if ($mensaje): ?>
             <div class="alert alert-<?= $mensaje_tipo ?> alert-dismissible fade show" role="alert">
                 <?= htmlspecialchars($mensaje) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
             </div>
         <?php endif; ?>
-        <div class="container mt-4">
-            <h2 class="mb-4 text-center" style="color: #4e54c8;">Herramientas Disponibles</h2>
-            <?php if (empty($herramientas)): ?>
-                <div class="alert alert-info text-center" role="alert">No hay herramientas disponibles en este momento. Vuelve pronto.</div>
-            <?php else: ?>
-                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-                    <?php foreach ($herramientas as $herramienta): ?>
-                        <div class="col">
-                            <div class="card h-100 tool-card">
-                                <?php $imagePath = !empty($herramienta['imagen']) ? htmlspecialchars($herramienta['imagen']) : 'https://via.placeholder.com/400x200?text=Sin+Imagen'; ?>
-                                <img src="<?= $imagePath ?>" class="card-img-top" alt="<?= htmlspecialchars($herramienta['nombre']) ?>">
-                                <div class="card-body">
-                                    <h5 class="card-title"><?= htmlspecialchars($herramienta['nombre']) ?></h5>
-                                    <p class="card-text"><?= htmlspecialchars($herramienta['descripcion']) ?></p>
-                                    <p class="card-price">Precio por día: $<?= number_format($herramienta['precio_dia'], 2, ',', '.') ?></p>
-                                    <p class="card-arrendador">Arrendador: <?= htmlspecialchars($herramienta['arrendador_nombre']) ?></p>
-                                    <p class="card-publication-date">Publicado: <?= time_elapsed_string($herramienta['fecha_publicacion']) ?></p>
-                                    <div class="actions">
-                                        <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#rentModal"
-                                                data-tool-id="<?= $herramienta['id'] ?>"
-                                                data-tool-name="<?= htmlspecialchars($herramienta['nombre']) ?>">
-                                            ¡Arrendar!
-                                        </button>
+
+        <div id="inicio-section">
+            <div class="container mt-4">
+                <h2 class="mb-4 text-center" style="color: #4e54c8;">Herramientas Disponibles</h2>
+                <?php if (empty($herramientas)): ?>
+                    <div class="alert alert-info text-center" role="alert">No hay herramientas disponibles en este momento. Vuelve pronto.</div>
+                <?php else: ?>
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                        <?php foreach ($herramientas as $herramienta): ?>
+                            <div class="col">
+                                <div class="card h-100 tool-card">
+                                    <img src="<?= !empty($herramienta['imagen']) ? htmlspecialchars($herramienta['imagen']) : 'https://via.placeholder.com/400x200?text=Sin+Imagen' ?>" class="card-img-top" alt="<?= htmlspecialchars($herramienta['nombre']) ?>">
+                                    <div class="card-body">
+                                        <h5 class="card-title"><?= htmlspecialchars($herramienta['nombre']) ?></h5>
+                                        <p class="card-text"><?= htmlspecialchars($herramienta['descripcion']) ?></p>
+                                        <p class="card-price">Precio por día: $<?= number_format($herramienta['precio_dia'], 2, ',', '.') ?></p>
+                                        <p class="card-arrendador">Arrendador: <?= htmlspecialchars($herramienta['arrendador_nombre']) ?></p>
+                                        <p class="card-publication-date">Publicado: <?= time_elapsed_string($herramienta['fecha_publicacion']) ?></p>
+                                        <div class="actions">
+                                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#rentModal"
+                                                    data-tool-id="<?= $herramienta['id'] ?>" data-tool-name="<?= htmlspecialchars($herramienta['nombre']) ?>">
+                                                ¡Arrendar!
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
-        <footer class="text-center mt-5 mb-3 text-muted"><p>&copy; <?= date("Y") ?> Arriendo de Herramientas. Todos los derechos reservados.</p></footer>
+
+        <div id="mis-arriendos-section" class="hidden-section">
+            <div class="container mt-4">
+                <h2 class="mb-4 text-center" style="color: #4e54c8;">Mis Solicitudes de Arriendo</h2>
+                <?php if (empty($mis_solicitudes)): ?>
+                    <div class="alert alert-info text-center" role="alert">No has realizado ninguna solicitud de arriendo todavía.</div>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-dark">
+                                <tr><th>Herramienta</th><th>Arrendador</th><th>Desde</th><th>Hasta</th><th>Estado</th><th>Fecha Solicitud</th></tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($mis_solicitudes as $solicitud): ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($solicitud['herramienta_nombre']) ?></td>
+                                        <td><?= htmlspecialchars($solicitud['arrendador_nombre']) ?></td>
+                                        <td><?= htmlspecialchars(date("d/m/Y", strtotime($solicitud['fecha_inicio']))) ?></td>
+                                        <td><?= htmlspecialchars(date("d/m/Y", strtotime($solicitud['fecha_fin']))) ?></td>
+                                        <td>
+                                            <?php
+                                            $estado = htmlspecialchars($solicitud['estado']);
+                                            $badge_class = 'bg-secondary';
+                                            if ($estado == 'aprobado') $badge_class = 'bg-success';
+                                            elseif ($estado == 'pendiente') $badge_class = 'bg-warning text-dark';
+                                            elseif ($estado == 'rechazado') $badge_class = 'bg-danger';
+                                            ?>
+                                            <span class="badge <?= $badge_class ?>"><?= ucfirst($estado) ?></span>
+                                        </td>
+                                        <td><?= htmlspecialchars(date("d/m/Y H:i", strtotime($solicitud['fecha_solicitud']))) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <footer class="text-center mt-5 mb-3 text-muted"><p>&copy; <?= date("Y") ?> TuTallerOnline. Todos los derechos reservados.</p></footer>
     </div>
 
     <div class="modal fade" id="rentModal" tabindex="-1" aria-labelledby="rentModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="rentModalLabel">Arrendar <span id="modalToolName"></span></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
                 <form action="dashboardcliente.php" method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="rentModalLabel">Arrendar <span id="modalToolName"></span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
                     <div class="modal-body">
                         <input type="hidden" name="action" value="rent_tool">
                         <input type="hidden" name="tool_id" id="modalToolId">
@@ -284,16 +329,6 @@ $conexion->close();
             try {
                 const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
                 if (userTimeZone) {
-                    fetch(window.location.pathname, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: 'user_timezone=' + encodeURIComponent(userTimeZone)
-                    }).then(response => {
-                        if (response.ok) {
-                        }
-                    }).catch(error => console.error('Error al enviar zona horaria:', error));
                     document.cookie = `user_timezone=${encodeURIComponent(userTimeZone)}; path=/; max-age=31536000`;
                 }
             } catch (e) {
@@ -319,31 +354,41 @@ $conexion->close();
             }
         });
 
+        const linkInicio = document.getElementById('link-inicio');
+        const linkMisArriendos = document.getElementById('link-mis-arriendos');
+        const sectionInicio = document.getElementById('inicio-section');
+        const sectionMisArriendos = document.getElementById('mis-arriendos-section');
+
+        linkInicio.addEventListener('click', () => {
+            sectionInicio.style.display = 'block';
+            sectionMisArriendos.style.display = 'none';
+            linkInicio.classList.add('active');
+            linkMisArriendos.classList.remove('active');
+        });
+
+        linkMisArriendos.addEventListener('click', () => {
+            sectionInicio.style.display = 'none';
+            sectionMisArriendos.style.display = 'block';
+            linkInicio.classList.remove('active');
+            linkMisArriendos.classList.add('active');
+        });
+
         document.addEventListener('DOMContentLoaded', function() {
             const rentModal = document.getElementById('rentModal');
             rentModal.addEventListener('show.bs.modal', function (event) {
                 const button = event.relatedTarget;
                 const toolId = button.dataset.toolId;
                 const toolName = button.dataset.toolName;
-                const modalToolName = rentModal.querySelector('#modalToolName');
-                const modalToolId = rentModal.querySelector('#modalToolId');
+                rentModal.querySelector('#modalToolName').textContent = toolName;
+                rentModal.querySelector('#modalToolId').value = toolId;
 
-                modalToolName.textContent = toolName;
-                modalToolId.value = toolId;
-
-                const today = new Date();
-                const dd = String(today.getDate()).padStart(2, '0');
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const yyyy = today.getFullYear();
-                const minDate = yyyy + '-' + mm + '-' + dd;
-
-                rentModal.querySelector('#fecha_inicio').setAttribute('min', minDate);
-                rentModal.querySelector('#fecha_fin').setAttribute('min', minDate);
+                const today = new Date().toISOString().split('T')[0];
+                rentModal.querySelector('#fecha_inicio').setAttribute('min', today);
+                rentModal.querySelector('#fecha_fin').setAttribute('min', today);
             });
             
             const fechaInicioInput = document.getElementById('fecha_inicio');
             const fechaFinInput = document.getElementById('fecha_fin');
-
             fechaInicioInput.addEventListener('change', function() {
                 fechaFinInput.setAttribute('min', this.value);
                 if (fechaFinInput.value < this.value) {
